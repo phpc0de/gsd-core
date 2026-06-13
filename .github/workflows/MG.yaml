@@ -13,24 +13,8 @@ on:
 
 jobs:
   build:
-    name: Build Binaries (${{ matrix.os }} - ${{ matrix.arch }})
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: ubuntu-latest
-            arch: x64
-            target: bun-linux-x64
-            binary_name: gsd-core-linux-amd64
-          - os: macos-latest
-            arch: arm64
-            target: bun-darwin-arm64
-            binary_name: gsd-core-darwin-arm64
-          - os: windows-latest
-            arch: x64
-            target: bun-windows-x64
-            binary_name: gsd-core-windows-amd64.exe
+    name: Build Binaries (Ubuntu-latest - x64)
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout Repository
@@ -45,7 +29,7 @@ jobs:
         run: bun install --frozen-lockfile
 
       # ==========================================
-      # 🛠️ 方案一的核心修复（已修正横线 - 与缩进）
+      # 🛠️ 方案一的核心修复：解决 $bunfs 找不到 cjs 的闪退 Bug
       # ==========================================
       - name: Fix Missing Slash Commands Script Bug
         shell: bash
@@ -60,13 +44,13 @@ jobs:
         shell: bash
         run: |
           mkdir -p dist
-          bun build ./src/index.ts --compile --minify --target=${{ matrix.target }} --outfile=dist/${{ matrix.binary_name }}
+          bun build ./src/index.ts --compile --minify --target=bun-linux-x64 --outfile=dist/gsd-core-linux-amd64
 
       - name: Upload Build Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.binary_name }}
-          path: dist/${{ matrix.binary_name }}
+          name: gsd-core-linux-amd64
+          path: dist/gsd-core-linux-amd64
 
   release:
     name: Create Pre-Release Assets
