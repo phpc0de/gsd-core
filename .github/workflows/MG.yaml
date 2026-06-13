@@ -25,30 +25,31 @@ jobs:
         with:
           bun-version: 1.3.14
 
-      # 允许转换锁文件，解决之前 package-lock 冲突导致的中断 Bug
+      # 1. 允许自动转换锁文件，解决之前 package-lock 冲突导致的中断 Bug
       - name: Install Project Dependencies
         run: bun install
 
       # ==========================================
-      # 🛠️ 方案一：强制在打包工作区植入补丁文件
-      # 这样 Bun 在编译时会将该 cjs 文件直接打包进二进制的本地相对路径下
+      # 🛠️ 方案一：在真实的子项目目录 (gsd-core/) 下植入伪装脚本
+      # 这样 Bun 在编译时，会把相对路径依赖正确打包进虚拟二进制文件系统中
       # ==========================================
-      - name: Inject Missing Fix Script
+      - name: Inject Missing Fix Script into Subfolder
         shell: bash
         run: |
-          mkdir -p scripts
-          echo "module.exports = function() { return { plugins: [] }; };" > scripts/fix-slash-commands.cjs
-          echo "Fallback cjs file injected into working directory."
+          mkdir -p gsd-core/scripts
+          echo "module.exports = function() { return { plugins: [] }; };" > gsd-core/scripts/fix-slash-commands.cjs
+          echo "Fallback cjs file injected into gsd-core/scripts/"
 
       # ==========================================
-      # 🚀 直接根据项目自带的真正的 CLI 入口进行打包
+      # 🚀 进入真正的子项目目录进行单文件编译
       # ==========================================
       - name: Compile Single-File Binary via Bun
         shell: bash
         run: |
           mkdir -p dist
-          # 直接指定核心入口，避免使用 find 误抓测试文件
-          bun build ./src/cli.ts --compile --minify --target=bun-linux-x64 --outfile=dist/gsd-core-linux-amd64
+          # 注意：进入 gsd-core 目录，以该目录下的入口文件进行编译
+          cd gsd-core
+          bun build ./src/cli.ts --compile --minify --target=bun-linux-x64 --outfile=../dist/gsd-core-linux-amd64
 
       - name: Upload Build Artifacts
         uses: actions/upload-artifact@v4
