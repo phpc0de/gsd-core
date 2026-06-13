@@ -1,0 +1,64 @@
+name: Manual Build & Release GSD Core Linux AMD64
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: '请输入 GSD Core 编译版本号 (例如: v1.4.5)'
+        required: true
+        default: 'v1.4.5'
+
+permissions:
+  contents: write # 必须赋予写权限，以便自动创建 Release
+
+jobs:
+  build-and-release-gsd:
+    name: Build GSD Core for Linux x64
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. 拉取真正的官方源码
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 2. 部署最高效的 Bun 运行与编译环境
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+
+      # 3. 安装项目依赖（使用最新的 package.json 锁文件）
+      - name: Install dependencies
+        run: bun install
+
+      # 4. 前置构建（如果官方 package.json 里有 build 脚本则自动跑，没有则跳过）
+      - name: Production Build
+        run: |
+          if bun run | grep -q "build"; then
+            bun run build
+          fi
+
+      # 5. 自动定位官方最新入口并将其锁死编译为单文件二进制
+      - name: Compile GSD Core to Single Binary
+        run: |
+          # 针对 open-gsd/gsd-core 官方目录结构进行精确定位
+          ENTRY_POINT="./src/index.ts"
+          if [ ! -f "$ENTRY_POINT" ] && [ -f "./src/cli.ts" ]; then ENTRY_POINT="./src/cli.ts"; fi
+          if [ ! -f "$ENTRY_POINT" ] && [ -f "./bin/gsd" ]; then ENTRY_POINT="./bin/gsd"; fi
+          if [ ! -f "$ENTRY_POINT" ] && [ -f "./index.js" ]; then ENTRY_POINT="./index.js"; fi
+          
+          echo "Detected open-gsd core entry: $ENTRY_POINT"
+          
+          # 使用 Bun 将其编译为纯正的 Linux AMD64 二进制单程序
+          bun build $ENTRY_POINT --compile --target=bun-linux-x64 --outfile ./gsd-core-linux-amd64
+
+      # 6. 一步到位，直接推送到 GitHub Releases 页面
+      - name: Create GitHub Release and Upload Binary
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ./gsd-core-linux-amd64
+          tag_name: ${{ github.event.inputs.release_tag }}
+          name: GSD Core Official Release ${{ github.event.inputs.release_tag }}
+          body: "Official standalone binary compiled from open-gsd/gsd-core for Linux AMD64 architecture."
+          draft: false
+          prerelease: false
