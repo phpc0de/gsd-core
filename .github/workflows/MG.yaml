@@ -25,9 +25,7 @@ jobs:
         with:
           bun-version: 1.3.14
 
-      # ==========================================
-      # 🛠️ 修复点：去掉了 --frozen-lockfile，允许自动转换锁文件
-      # ==========================================
+      # 修复点：允许自动转换锁文件，避免安装挂掉
       - name: Install Project Dependencies
         run: bun install
 
@@ -43,11 +41,36 @@ jobs:
             echo "Successfully generated fallback fix-slash-commands.cjs for compilation."
           fi
 
+      # ==========================================
+      # 🛠️ 修复点：智能寻找项目入口文件进行编译
+      # ==========================================
       - name: Compile Single-File Binary via Bun
         shell: bash
         run: |
           mkdir -p dist
-          bun build ./src/index.ts --compile --minify --target=bun-linux-x64 --outfile=dist/gsd-core-linux-amd64
+          
+          # 自动侦测项目的真实主入口文件
+          ENTRY=""
+          if [ -f "./cli.ts" ]; then
+            ENTRY="./cli.ts"
+          elif [ -f "./loader.ts" ]; then
+            ENTRY="./loader.ts"
+          elif [ -f "./src/cli.ts" ]; then
+            ENTRY="./src/cli.ts"
+          elif [ -f "./src/index.ts" ]; then
+            ENTRY="./src/index.ts"
+          else
+            # 兜底寻找根目录下任何可能是入口的 ts 文件
+            ENTRY=$(ls *.ts 2>/dev/null | head -n 1)
+          fi
+          
+          if [ -z "$ENTRY" ]; then
+            echo "Error: Cannot find any suitable entry point (.ts file) for compilation!"
+            exit 1
+          fi
+          
+          echo "Found entry point: $ENTRY, starting compilation..."
+          bun build "$ENTRY" --compile --minify --target=bun-linux-x64 --outfile=dist/gsd-core-linux-amd64
 
       - name: Upload Build Artifacts
         uses: actions/upload-artifact@v4
